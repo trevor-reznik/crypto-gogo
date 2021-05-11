@@ -297,7 +297,7 @@ Market Cap : Market capitalization in USD
 
 [REST API docs](https://docs.kraken.com/rest/)
 
-[More Detailed REST API methods documentation](https://cryptocurrenciesstocks.readthedocs.io/kraken.html)
+[More Detailed REST API public methods documentation](https://cryptocurrenciesstocks.readthedocs.io/kraken.html)
 
 [Websockets API docs](https://docs.kraken.com/websockets)
 
@@ -310,7 +310,9 @@ Further information and FAQs may be found on the [API section](https://support.k
 
 ##### List of Methods
 
-[Params, Return Values, Explanation, Examples for Each Method](https://cryptocurrenciesstocks.readthedocs.io/kraken.html)
+[Public Methods -- Docs](https://cryptocurrenciesstocks.readthedocs.io/kraken.html)
+
+[Private Methods -- Docs](https://docs.kraken.com/rest/)
 
 ###### Public Methods
 

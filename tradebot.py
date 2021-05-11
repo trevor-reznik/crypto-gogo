@@ -54,7 +54,7 @@ def asset_info(coin=False):
     return res.json()["result"]
 
 
-def asset_pair(coin, refcoin):
+def asset_pair(pair):
     """
     Returns dict containing
     altname	            : alternate pair name
@@ -75,10 +75,10 @@ def asset_pair(coin, refcoin):
     margin_stop         : stop-out/liquidation margin level
     """
 
-    url = 'https://api.kraken.com/0/public/AssetPairs?pair={}{}'.format(coin, refcoin)
+    url = 'https://api.kraken.com/0/public/AssetPairs?pair={}'.format(pair)
     res = requests.get(url)
 
-    return res.json()["result"][coin + refcoin]
+    return res.json()["result"][pair]
 
 
 def get_order_book(coin, refcoin):
@@ -115,16 +115,19 @@ def get_ticker(coin, refcoin):
     return res.json()["result"][coin + refcoin]
 
 
-def get_price(coin, refcoin):
+def get_price(pair):
     """
-    Returns 'coin' vs 'refcoin' price based on
-    price of last closed order 
+    Returns price against reference currency based on 
+    price of last closed order in market
     """
-    
-    url = "https://api.kraken.com/0/public/Ticker?pair={}{}"
-    res = requests.get(url.format(coin, refcoin))
 
-    return res.json()["result"][coin + refcoin]["c"][0]
+    if type(pair) == list:
+        pair = pair[0] + pair[1]
+    
+    url = "https://api.kraken.com/0/public/Ticker?pair={}".format(pair)
+    res = requests.get(url)
+
+    return float(res.json()["result"][pair]["c"][0])
 
 
 
@@ -174,7 +177,7 @@ def kraken_request(uri_path, data, api_key, api_sec):
     return req
 
 
-def usr_fees(coin, refcoin):
+def usr_fees(pair):
     """
     Result dict contains: currency, volume, fees, fees_maker.
         fees and fees_maker contain:
@@ -195,7 +198,7 @@ def usr_fees(coin, refcoin):
     data = {
         "nonce": str(int(1000*time.time())),
         "fee-info": True,
-        "pair": coin.upper() + refcoin.upper()
+        "pair": pair.upper()
     }
 
     res = kraken_request(
@@ -231,3 +234,148 @@ def balance(coin="all"):
     if coin != "all":
         return res.json()["result"][coin.upper()]
     return res.json()["result"]
+
+
+def trade_history(verbose=False):
+    """
+    Optional Data Params:
+        type    : all | any position | closed position
+        trades  : false | true
+                   (whether or not to include trades related
+                   to position)
+        start   : Starting unix timestamp or trade tx ID of results 
+        end     : Ending unix timestamp or trade tx ID of results 
+        ofs     : Result offset for pagination
+
+    Result dict containing:
+    trades
+        $trade-ID
+            ordertxid   : order id
+            postxid     : post id
+            pair        : currency pair
+            time        : time initiated
+            type        : buy | sell
+            ordertype   : limit | market | etc.
+            price       : coin / ref coin
+            cost        : nominal cost in ref coin
+            fee         : nominal fee in ref coin
+            vol         : # of coin
+            margin      : margin float
+            misc        : ...
+
+    Note: Unless otherwise stated, costs, fees, prices, and volumes 
+          are specified with the precision for the asset pair (pair_decimals
+          and lot_decimals), not the individual assets' precision (decimals).
+    """
+
+    data = {
+        "nonce": str(int(1000*time.time())),
+        "trades": True
+    }
+
+    res = kraken_request(
+        "/0/private/TradesHistory",
+        data,
+        public_key,
+        private_key
+    )
+
+    if verbose:
+        for order_id, trade in res.json()["result"]["trades"].items():
+            print("Order ID:", order_id)
+            for x, y in trade.items():
+                print(x + ":", y)
+            print()
+
+    return res.json()["result"]["trades"]
+
+
+def add_order(pair, order_direction, volume, price="NOT LIMIT", order_type="limit", just_test=False):
+    """
+    Params:
+        pair            : trading pair abbreviation
+        order_direction : "buy" or "sell"
+        volume          : Order quantity in terms of the base asset
+        price           : Limit price for limit orders. Leave default for market orders
+        order_type      : "market" "limit" "stop-loss" "take-profit" "stop-loss-limit" "take-profit-limit" "settle-position"
+        just_test       : For testing -- validate order but don't execute
+
+    GET Params:
+        nonce       : Nonce used in construction of API-Sign header
+        ordertype   : "market" "limit" "stop-loss" "take-profit" "stop-loss-limit" "take-profit-limit" "settle-position"
+        type        : "buy" "sell"
+        volume	    : [optional] Order quantity in terms of the base asset
+                        Note: Volume can be specified as 0 for closing margin orders to automatically 
+                        fill the requisite quantity.
+        pair        : Asset pair id or altname
+        price	    : Limit price for limit orders
+                      Trigger price for stop-loss, stop-loss-limit, take-profit and take-profit-limit orders
+        price2	    : Limit price for stop-loss-limit and take-profit-limit orders
+                        Note: Either price or price2 can be preceded by +, -, or # to specify the order 
+                              price as an offset relative to the last traded price. + adds the amount to, 
+                              and - subtracts the amount from the last traded price. # will either add or 
+                              subtract the amount to the last traded price, depending on the direction and 
+                              order type used. Relative prices can be suffixed with a % to signify the 
+                              relative amount as a percentage.
+
+        leverage	: [optional] Amount of leverage desired (default = none)
+        oflags      : [optional] Comma delimited list of order flags
+                        post post-only order (available when ordertype = limit)
+                        fcib prefer fee in base currency (default if selling)
+                        fciq prefer fee in quote currency (default if buying, mutually exclusive with fcib)
+                        nompp disable market price protection for market orders
+        starttm	    : [optional] Scheduled start time. Can be specified as an absolute timestamp or as a number of seconds in the future.
+                        0 now (default)
+                        +<n> schedule start time seconds from now
+                        <n> = unix timestamp of start time
+        expiretm    : [optional]	
+        close       :
+            [ordertype] : Conditional close order type.
+                            "limit" "stop-loss" "take-profit" "stop-loss-limit" "take-profit-limit"
+                            Note: Conditional close orders are triggered by execution of the primary 
+                                  order in the same quantity and opposite direction, but once triggered
+                                  are independent orders that may reduce or increase net position.
+            [price]	    : Conditional close order price
+            [price2]	: Conditional close order price2
+        validate    : [boolean]
+                      Default: false
+                      Validate inputs only. Do not submit order.
+
+    Returns:
+        descr:
+            order : [$type, $volume, $pair @ $limit-price with $leverage],
+            close : [conditional close position @ stop loss $stop-loss-price -> limit $limit-price ]
+        txid:
+            order ID
+    """
+    if price == "NOT LIMIT":
+        data = {
+            "nonce": str(int(1000*time.time())),
+            "ordertype": order_type,
+            "type": order_direction,
+            "volume": float(volume),
+            "pair" : pair
+        }
+    else:
+        data = {
+            "nonce": str(int(1000*time.time())),
+            "ordertype": order_type,
+            "type": order_direction,
+            "volume": float(volume),
+            "pair" : pair,
+            "price": float(price)
+        }
+
+    if just_test:
+        data["validate"] = True
+
+    res = kraken_request(
+        "/0/private/AddOrder",
+        data,
+        public_key,
+        private_key
+    )
+
+    return res.json()
+    #["result"]
+
