@@ -1,25 +1,3 @@
-#
-# ─────────────────────────────────────────────────────────────── REFERENCES ─────
-#
-# Extended Description of Each Method:
-# https://cryptocurrenciesstocks.readthedocs.io/kraken.html
-# 
-# "Crypto Currencies Stock" (CSS) Python Module Docs:
-# https://cryptocurrenciesstocks.readthedocs.io/index.html
-#
-# How to Maintain a Valid Order Book:
-# https://support.kraken.com/hc/en-us/articles/360027821131-How-to-maintain-a-valid-order-book-
-# 
-# Kraken Docs (abridged):
-# https://docs.kraken.com/rest/#operation/getTickerInformation
-# 
-# What is a Nonce Window:
-# https://support.kraken.com/hc/en-us/articles/360001148023-What-is-a-nonce-window-
-# 
-#
-# ────────────────────────────────────────────────────────────────────────────────
-#
-
 import time
 import json, urllib.request
 import os
@@ -300,6 +278,17 @@ def add_order(pair, order_direction, volume, price="NOT LIMIT", order_type="limi
         order_type      : "market" "limit" "stop-loss" "take-profit" "stop-loss-limit" "take-profit-limit" "settle-position"
         just_test       : For testing -- validate order but don't execute
 
+
+    Returns:
+        error:
+            error message if error
+        result:
+            descr:
+                order : [$type, $volume, $pair @ $limit-price with $leverage],
+                close : [conditional close position @ stop loss $stop-loss-price -> limit $limit-price ]
+            txid:
+                order ID
+
     GET Params:
         nonce       : Nonce used in construction of API-Sign header
         ordertype   : "market" "limit" "stop-loss" "take-profit" "stop-loss-limit" "take-profit-limit" "settle-position"
@@ -340,14 +329,8 @@ def add_order(pair, order_direction, volume, price="NOT LIMIT", order_type="limi
         validate    : [boolean]
                       Default: false
                       Validate inputs only. Do not submit order.
-
-    Returns:
-        descr:
-            order : [$type, $volume, $pair @ $limit-price with $leverage],
-            close : [conditional close position @ stop loss $stop-loss-price -> limit $limit-price ]
-        txid:
-            order ID
     """
+
     if price == "NOT LIMIT":
         data = {
             "nonce": str(int(1000*time.time())),
@@ -377,5 +360,3 @@ def add_order(pair, order_direction, volume, price="NOT LIMIT", order_type="limi
     )
 
     return res.json()
-    #["result"]
-

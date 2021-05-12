@@ -10,16 +10,30 @@
   - reference history of stock market algorithms
 - [fix stop loss limit definition](https://www.investopedia.com/articles/active-trading/091813/which-order-use-stoploss-or-stoplimit-orders.asp)
 
-- [Maker and Taker Fee Schedules](https://support.kraken.com/hc/en-us/articles/360000526126-What-are-Maker-and-Taker-fees-)
+- Add to relevant section: [Maker and Taker Fee Schedules](https://support.kraken.com/hc/en-us/articles/360000526126-What-are-Maker-and-Taker-fees-)
 
-- [How to Maintain a Valid Order Book](https://support.kraken.com/hc/en-us/articles/360027821131-How-to-maintain-a-valid-order-book-)
+- Add to API section: [How to Maintain a Valid Order Book](https://support.kraken.com/hc/en-us/articles/360027821131-How-to-maintain-a-valid-order-book-)
 
-- [What is a Nonce Window](https://support.kraken.com/hc/en-us/articles/360001148023-What-is-a-nonce-window-)
+- Add to API section: [What is a Nonce Window](https://support.kraken.com/hc/en-us/articles/360001148023-What-is-a-nonce-window-)
 
+- ? APIs capable of using analysis tools that are available on Kraken terminal
 
-- fallacies research [1](https://www.google.com/search?q=list+of+stock+market+fallacies&oq=list+of+stock+market+fallacies&aqs=chrome..69i57.3041j0j7&sourceid=chrome&ie=UTF-8)
+- ? DATA input feed into ML algorithms based on Kraken analysis algorithms or common algorithms
 
-- analysis guides [1](https://www.youtube.com/watch?v=eynxyoKgpng)
+- Trading Strategies/Types
+  - [Momentum Trading](https://www.google.com/search?q=momentum+trading&oq=momentum+trading&aqs=chrome..69i57&sourceid=chrome&ie=UTF-8)
+  - penny trading -> turn into python program
+  - alligator
+  - OBV
+  - trend analysis
+  - BBwidth
+  - relative value of refc vs. relative value of asset
+    - relative trend-based priority of asset (should buy if good value depending on recent trends in time-domain similar to genearl trading frequnecy of given strategy)
+  - High Frequency momentum trading program
+    - whiile True price ticker checker -> looking for relative value of refc vs. asset -> purchase -> add order -> buy value -> sell with low-margin/percent condition-based decision tree program that runs alongside while True
+- fallacies research -> add to README [1](https://www.google.com/search?q=list+of+stock+market+fallacies&oq=list+of+stock+market+fallacies&aqs=chrome..69i57.3041j0j7&sourceid=chrome&ie=UTF-8)
+
+- analysis guides -> add to README  [1](https://www.youtube.com/watch?v=eynxyoKgpng)
 
 
 

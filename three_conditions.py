@@ -1,12 +1,14 @@
 
-# TODO: Calculations foor stop and limit that are informed by the volume/range of the trading pair (along with other analytic ml equations)
-# TODO: calling the stop_limit function repeatedly in the order dictionary init function makes individual calls to the private API each time in order to get the user fees amount (might not be bad if this function is only used once)
+
+# TODO: log file updates with each functions -- relevant info only -- time-coded
 
 
 from tradebot import usr_fees, balance, trade_history, get_price, add_order, asset_pair
 import pickle
 from termcolor import colored
 import time
+from term_gui import make_header
+from pyfiglet import Figlet
 
 #
 # ────────────────────────────────────────────────── CREATE PRICE THRESHOLDS ─────
@@ -36,6 +38,9 @@ def stop_limit(trading_pair, refc_cost, asset_balance, stop=False, limit=False, 
         asset_balance   : volume of trade in the asset (owned/purchased) currency
         stop            : first floor/ceiling that activates the limit condition
         limit           : take-profit/stop-loss that's initiated after 1st condition is met
+        hard_flooor     : the absolute floor that automatically triggers a market sell
+        fee             : the scheduled fee percentage for this pair. default arg calls the API for each pair.
+                          Alternatively, can use ( .20% + .26% ) as a standard.
     """
 
     ### Calculations:
@@ -108,8 +113,6 @@ def save_obj(obj, name):
         name    : the name of the file to write to/create
     """
 
-    # https://stackoverflow.com/questions/19201290/how-to-save-a-dictionary-to-a-file
-
     with open('obj/'+ name + '.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
@@ -120,7 +123,8 @@ def load_obj(name):
     save_obj() function. 
     
     This Program's Stored Objects:
-        order   : the dictionary of orders and floor/ceiling prices
+        order       : the dictionary of orders and floor/ceiling prices
+        cashed_out  : the IDs of cashed out orders
 
     Params:
         name    : the name of the object/file that was stored previously
@@ -139,7 +143,6 @@ def print_obj(name):
         name    : the name of the object/file that was stored previously
     """
 
-    from term_gui import make_header
     colors = ["blue", "red", "yellow", "magenta",  "cyan", "white"]*300
     obj = load_obj(name)
     
@@ -195,37 +198,88 @@ def print_obj(name):
 #
 
 
-def init_orders(verbose=False, log_file="order"):
+def init_orders(log_file="order", new_thresholds=True, stop=.035, limit=False, hard_floor=False, fee=(.0026009 * 2.0), verbose=False):
+    """
+    Params:
+        log_file        : the pickle obj file that contains the order dict that should be accessed
+        new_thresholds  : if False, don't update dictionary with new floor calculations
+        stop            : first floor/ceiling that activates the limit condition
+        limit           : take-profit/stop-loss that's initiated after 1st condition is met
+        hard_flooor     : the absolute floor that automatically triggers a market sell
+        fee             : the scheduled fee percentage for this pair. "use API" arg calls the API for each pair.
+                          Default value represents most common fee schedule.
+    """
 
-    ret = {}
+    curr_dict = load_obj(log_file)
     history = orders_by_type("buy")
+    delete = load_obj("cashed_out")
 
     for key, order in history.items():
-        ret[key] = order
-        floors = stop_limit(
-            order["pair"],
-            float(order["cost"]),
-            float(order["vol"]),
-            stop=.06,
-            fee=(.0026009 * 2.0),
-            limit=False,
-            hard_floor=False # Use Default
-        )
-        ret[key].update(floors)
-        ret[key].update(
-            {
-                "ceiling hit" : False,
-                "floor hit" : False
-            }
-        )
+
+        # If order is already cashed out, delete the order record and skip this iteration
+        if key in delete:
+            if key in curr_dict.keys():
+                del curr_dict[key]
+            continue
+        
+        # Update the GET responses from trade_history API call to saved order-dictionary-pickle-object
+        else:
+            try:
+                curr_dict[key].update(order)
+            except: curr_dict[key] = order
+        # Call stop_limit to calculate floors/ceilings for each order unless new_thresholds is False
+        try:
+            if not new_thresholds:
+                if order["ceiling"]:
+                    pass
+        # if new_thresholds is False but the order is brand new, create thresholds anyway
+        except:
+            floors = stop_limit(
+                order["pair"],
+                float(order["cost"]),
+                float(order["vol"]),
+                stop=stop,
+                fee=fee,
+                limit=limit,
+                hard_floor=hard_floor
+            )
+            curr_dict[key].update(floors)
+
+        # if new_thresholds is True
+        if new_thresholds:
+            floors = stop_limit(
+                order["pair"],
+                float(order["cost"]),
+                float(order["vol"]),
+                stop=stop,
+                fee=fee,
+                limit=limit,
+                hard_floor=hard_floor
+            )
+            curr_dict[key].update(floors)
+
+        # Check if 'ceiling hit' and 'floor hit' values already exist. If not, create
+        try:
+            if curr_dict[key]["ceiling hit"]:
+                pass
+            if curr_dict[key]["floor hit"]:
+                pass
+        except:
+            curr_dict[key].update(
+                {
+                    "ceiling hit" : False,
+                    "floor hit" : False
+                }
+            )
+
         if verbose:
             print(
                 order["pair"],
                 floors,
                 "\n"
             )
- 
-    save_obj(ret, log_file)
+
+    save_obj(curr_dict, log_file)
 
 
 def orders_by_type(order_type):
@@ -246,16 +300,94 @@ def orders_by_type(order_type):
     return ret
 
 
-def display_status():
+#
+# ──────────────────────────────────────────────────────────── ADDING ORDERS ─────
+#
+
+
+def format_volume(pair, volume, direction="buy"):
+    """
+    pair        : trading pair abbreviation
+    volume      : amount in currency used for purchase.
+                  if buying, volume should be in reference currency;
+                  if selling, volume should be in asset currency. 
+    direction   : "sell" or "buy" (default)
+    """
+    # price = 1 refc / 1 assetc
+    # 
+    # if buy, volume is in refc
+    #   if base is coin1 (assetc), convert volume to assetc
+    #       (volume in refc) / (price) =
+    #       (volume in refc) * (1 assetc / 1 refc) =
+    #       volume in assetc
+    #   if base is coin2 (refc), don't convert
+    #  
+    # if sell, volume is in assetc
+    #   if base is coin1 (assetc), don't convert
+    #   if base is coin2 (refc), convert volume to refc
+    #       (volume in assetc) * (price) = 
+    #       (volume in assetc) * (1 refc / 1 assetc) =
+    #       volume in refc
+
+    pair_info = asset_pair(pair)
+    base = pair_info["base"]
+    price = get_price(pair)
+
+    if direction == "buy":
+        ret_volume = ( float(volume) / float(price) ) if pair[:3] in base.upper() else float(volume)
+    else:
+        ret_volume = ( float(volume) * float(price) ) if pair[-3:] in base.upper() else float(volume)
         
-    from term_gui import make_header
+    return ret_volume
+
+
+def cash_out(order_id):
+    """
+    pass the order ID's for orders whose initial purchase value
+    was returned in base currency after cashing out. ID will be
+    stored for persistent use.
+    """
+    current_list = load_obj("cashed_out")
+    current_list.append(order_id)
+    save_obj(current_list, "cashed_out")
+
+
+def format_price(price, deciminals=6):
+    return f'{(price):.6f}'
+
+
+#
+# ──────────────────────────────────────── STDOUT DISPLAYS AND NOTIFICATIONS ─────
+#
+
+# TODO: If log condition is True, save all print statements to a log file after formatting
+
+
+def display_status(single_order=False, abridged=True, header=True):
+    """
+    Params:
+        single_order    : If not False, pass an order ID to print only that order's Info.
+                          If False, print all active buy-orders.
+        abridged        : If False, prints extra info about order's initial purchase.
+                          If True, print only the important details.
+        header          : If False, don't print header for each order.
+    """
+        
 
     accounts = load_obj("order")
+    cashed_out = load_obj("cashed_out")
 
     usd_per_btc = get_price("XXBTZUSD")
     usd_per_eth = get_price("XETHZUSD")
 
     for identifier, order in accounts.items():
+
+        if single_order:
+            if identifier != single_order:
+                continue
+
+        if identifier in cashed_out:
+            continue
 
         curr_price = get_price(order["pair"])
 
@@ -277,16 +409,17 @@ def display_status():
 
         # ─────────────────────────────────────────────────────────────────
 
-        print(
-            colored(
-                make_header(
-                    60,
-                    order["pair"],
-                    tiers=2
-                ),
-                "cyan"
+        if header:
+            print(
+                colored(
+                    make_header(
+                        60,
+                        order["pair"],
+                        tiers=2
+                    ),
+                    "cyan"
+                )
             )
-        )
 
         # PROFIT/LOSS
         if profit > 0:
@@ -388,106 +521,185 @@ def display_status():
                 )
             )
         
-        # ID
+        # EXTRA Info
+        if not abridged:
+            print(
+                "Initial Purchase Time:",
+                colored(
+                    str(order["time"]),
+                    "white"
+                ),
+                "\nInitial Cost:",
+                colored(
+                    str(order["cost"]),
+                    "white"
+                ),
+                "\nInitial Fee:",
+                colored(
+                    str(order["fee"]),
+                    "white"
+                ),
+                "\nInitial Volume:",
+                colored(
+                    str(order["vol"]),
+                    "white"
+                )
+            )
+
+
+def fig_alert(text, valence, border_header=False, font=False, color=False, boxed=False, termcolor=True, pair=True):
+    """
+    Params:
+        text        : string content of header
+        valence     : "good", "bad", "neutral"
+        border_header : boxed heder above fig font. If not False, pass the text.
+        font        : Figlet font. Leave blank for default based on valence.
+        color       : Termcolor color. Leave blank for default based on valence.
+        boxed       : Surrounded by '[+]' if True (default is False).
+        termcolor   : if True (default), print in color. Else print normal.
+        pair        : If True, text is a trading pair that should be split and hyphenated.
+    """
+
+    # Defaults
+    if not font:
+        font = "starwars" if valence == "good" else "roman" if valence == "neutral" else "fender"
+    if not color:
+        color = "green" if valence == "good" else "blue" if valence =="neutral" else "red"
+    if boxed:
+        leader = "[+]" if valence == "good" else "[~]" if valence =="neutral" else "[-]"
+    else: leader = ""
+
+    # Border Header
+    if border_header:
         print(
-            "\nOrder ID: ",
-            identifier
+            colored(
+                make_header(
+                    80,
+                    border_header,
+                    tiers=2
+                ),
+                color
+            )
         )
 
-
-#
-# ──────────────────────────────────────────────────────────── ADDING ORDERS ─────
-#
-
-
-def format_volume(pair, volume, direction="buy"):
-    """
-    pair        : trading pair abbreviation
-    volume      : amount in currency used for purchase.
-                  if buying, volume should be in reference currency;
-                  if selling, volume should be in asset currency. 
-    direction   : "sell" or "buy" (default)
-    """
-    # price = 1 refc / 1 assetc
-    # 
-    # if buy, volume is in refc
-    #   if base is coin1 (assetc), convert volume to assetc
-    #       (volume in refc) / (price) =
-    #       (volume in refc) * (1 assetc / 1 refc) =
-    #       volume in assetc
-    #   if base is coin2 (refc), don't convert
-    #  
-    # if sell, volume is in assetc
-    #   if base is coin1 (assetc), don't convert
-    #   if base is coin2 (refc), convert volume to refc
-    #       (volume in assetc) * (price) = 
-    #       (volume in assetc) * (1 refc / 1 assetc) =
-    #       volume in refc
-
-    pair_info = asset_pair(pair)
-    base = pair_info["base"]
-    price = get_price(pair)
-
-    if direction == "buy":
-        ret_volume = ( float(volume) / float(price) ) if pair[:3] in base.upper() else float(volume)
-    else:
-        ret_volume = ( float(volume) * float(price) ) if pair[-3:] in base.upper() else float(volume)
-        
-    return ret_volume
+    # Font
+    text = str(text)
+    f = Figlet(font=font) if len(text) < 12 else Figlet(font="small",justify="center")
+    
+    # Text
+    if pair:
+        text = text.replace("X","")
+        text = text[:3] + " - " + text[-3:]
+    text = f.renderText( leader + text + leader if len(text) < 8 else text )
+    
+    print( colored(text, color) ) if termcolor else text
 
 
-
-# EXAMPLE
-def d():
-
-    btc_balance = 0.0039708840
-
-
-    volume = format_volume("TRXXBT", (btc_balance / 4.0))
-
+def id_pair_display(identifier, pair, color="white"):
     print(
-        "volume: ",
-        str(volume)
-    )
-    print()
-    print(
-        add_order(
-            "TRXXBT",
-            "buy",
-            volume,
-            order_type="market",
-            just_test=True
+        "\nID: ",
+        colored(
+            identifier,
+            "white"
+        ),
+        "PAIR: ",
+        colored(
+            pair,
+            "white"
         )
     )
 
 
+def notify_threshold_hit_change(from_ceiling, to_ceiling, from_floor, to_floor="False", color="white"):
+    print(
+        colored(
+            "\n'Ceiling Hit'",
+            color
+        ),
+
+        "Property Changed from",
+        colored(
+            str( from_ceiling ),
+            color
+        ),
+        "to",
+        colored(
+            str( to_ceiling ),
+            color
+        ),
+
+        colored(
+            "\n'Floor Hit'",
+            color
+        ),
+        "Property Changed from",
+        colored(
+            str( from_floor ),
+            color
+        ),
+        "to",
+        colored(
+            str(to_floor),
+            color
+        )
+    )
 
 
-# TODO: make this cashed_out array a object that is saved with pickle
-cashed_out = [
-    "TWLB5X-GGUBR-TBLTOA",
-    "TQUVKG-K6EZJ-EHIAUL",
-    "TAGGOQ-JJI2E-DCXZXZ",
-    "TSNK6A-L5WDR-4V5I5D",
-    "TXLRQZ-LKSRJ-DVGLK2"
-]
+def notify_order_place(order, direction, curr_price, color, ceiling=True):
 
-# TODO: update accounts object using dict creation function -- `update` so that user-created properties arent deleted
+    post = order["post ceiling"] if ceiling else order["post floor"]
 
-# TODO: use log file that takes all the verbose and print() functions/statements/blocks and adds headers indicating current time and other info
+    print(
+        "\n\n[+] Limit Sell Order Placed with: ",
+        colored(
+            str(format_volume(order["pair"], order["vol"], direction=direction)),
+            color
+        ),
+        "of Base Currency",
+        "at Price: ",
+        colored(
+            str( format_price(post) ),
+            color
+        ),
+        "\n(" + str( f'{( ((curr_price - post) / curr_price ) * 100.0 ):.2f}' ) +\
+        "%" + " Below Current Price of",
+        str( format_price(curr_price) ) + ")",
+        colored(
+            "\nIssuing Order Now . . . ",
+            "grey"
+        ),
+        colored(
+            "\n. . . Order Attempted . . .",
+            "grey"
+        ),
+        "\nResponse from Server:"
+    )   
+
+
+#
+# ──────────────────────────────────────────────────── THREE CONDITIONS LIVE ─────
+#
+
 
 def threec_live():
 
     accounts = load_obj("order")
-    for _ in cashed_out:
+    for _ in load_obj("cashed_out"):
         try:
             del accounts[_]
         except: pass
+    temp_bin = []
+
+    # TODO -- save accounts object to pickle file at end of instance
 
     for identifier, order in accounts.items():
 
-        time.sleep(1)
         curr_price = get_price(order["pair"])
+        time.sleep(1.5)
+        print("\n\n\n\n\n\n\n\n")
+
+        # Temp Recylcye Bin -- ordres that have been cashed out but can't update accounts until iteration ends
+        if identifier in temp_bin: continue
 
         #
         # ─────────────────────────────────────────────────── CEILING ─────
@@ -495,29 +707,81 @@ def threec_live():
 
         if not order["ceiling hit"]:
 
+
+            # ─────────────────────────────────────────────────────────────────
+            # ─── HITTING CEILING FOR FIRST TIME ──────────────────────────────
+
             if curr_price >= order["ceiling"]:
-                print(order["pair"])
-                print("Ceiling Hit")
-                # 1. cancel all orders
-                # 2. change 'ceiling hit' value to True (and save object with pickle)
-                # 3. change 'floor hit' value to False (incase it's not already)
-                # 4. place limit order
+
+                # (1) Cancel All Orders
+                # (2) Change 'ceiling hit'
+                order["ceiling hit"] = True
+                # (3) Change 'floor hit' value to False (incase it's not already)
+                order["floor hit"] = False
+                # (4) Place Limit Order
+                response = add_order(
+                    order["pair"],
+                    "sell",
+                    format_volume(order["pair"], order["vol"], direction="sell"),
+                    price= format_price( order["post ceiling"] ),
+                    order_type="limit",
+                    just_test=True
+                )
+                # (5) Logging with Logfile and Notifying with Stdout
+                fig_alert( order["pair"], "good", border_header="[+] CEILING HIT" )
+                id_pair_display(identifier, order["pair"])
+                display_status(single_order=identifier, header=False, abridged=True)
+                notify_threshold_hit_change( order["ceiling hit"], "True",  order["floor hit"])
+                notify_order_place(order, "sell", curr_price, "green", ceiling=True) 
+                for k, v in response.items():
+                    if not v: continue
+                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
+
+
         else:
 
-            # Hitting Post-Ceiling Floor
+
+            # ─────────────────────────────────────────────────────────────────
+            # ─── HITTING POST-CEILING FLOOR AFTER CEILING ────────────────────
+
             if curr_price <= order["post ceiling"]:
-                print(order["pair"])
-                print("Post-Ceiling Floor Hit")
-                # 1. add order ID to cashed_out (and save object with pickle)
-                # 2. update relevant balances (and save object with pickle)
-            
-            # New Ceiling on Continuous Rise
-            if curr_price >= ( order["ceiling"] * 1.025 ):
-                print(order["pair"])
-                print("New Ceiling")
-                # 1. cancel all orders
-                # 2. place new limit order
-                # 3. update dictionary values (and save object with pickle)
+                # (1) Logging with Logfile and Notifying with Stdout
+                fig_alert( order["pair"], "neutral", border_header="[~] POST-CEILING LIMIT HIT" )
+                id_pair_display(identifier, order["pair"])
+                display_status(single_order=identifier, header=False, abridged=True)
+                # (2) File Away Order ID to cashed_out
+                cash_out(identifier); temp_bin.append(identifier)
+                # (3) Update Relevant Balances
+
+
+
+            # ─────────────────────────────────────────────────────────────────
+            # ─── NEW CEILING > MOON ──────────────────────────────────────────
+
+            if curr_price >= ( order["ceiling"] * 1.04 ):
+                # (1) Cancel All Orders
+                # (2) Calculate New Thresholds + Update Dict Values
+                order["post ceiling"] = order["ceiling"] * 1.035
+                order["ceiling"] = order["ceiling"] * 1.04 #for calculations only
+                # (3) Place New Limit Order with New Post Ceiling Limit
+                response = add_order(
+                    order["pair"],
+                    "sell",
+                    format_volume(order["pair"], order["vol"], direction="sell"),
+                    price= format_price( order["post ceiling"] ),
+                    order_type="limit",
+                    just_test=True
+                )
+                # (4) Logging with Logfile and Notifying with Stdout
+                fig_alert( order["pair"], "good", border_header="[+] NEW CEILING INITIATED" )
+                id_pair_display(identifier, order["pair"])
+                display_status(single_order=identifier, header=False, abridged=True)
+                notify_order_place(order, "sell", curr_price, "green", ceiling=True) 
+                print( "Previous Limit:", colored( (format_price ( order["post ceiling"] * .96618357487 )), "green"))
+                print( "New Limit:", colored( (format_price ( order["post ceiling"] * .96618357487 )), "green" ))
+                for k, v in response.items():
+                    if not v: continue
+                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
         
         #
         # ───────────────────────────────────────────────────── FLOOR ─────
@@ -525,52 +789,86 @@ def threec_live():
 
         if not order["floor hit"]:
 
-            # Dip Below Floor
+
+            # ─────────────────────────────────────────────────────────────────
+            # ─── DIP BELOW FLOOR ─────────────────────────────────────────────
+
             if curr_price <= order["floor"]:
-                print(order["pair"])
-                print("Floor Hit")
-                # 1. cancel all orders
-                # 2. change 'floor hit' value to True
-                # 3. change 'ceiling hit' value to False (incase it's not already)
-                # 4. place limit order
+                # (1) Cancel All Orders
+                # (2) Change 'floor hit'
+                order["floor hit"] = True
+                # (3) Change 'ceiling hit' Value to False (incase it's not already)
+                order["ceiling hit"] = False
+                # (4) Place Limit Order
+                response = add_order(
+                    order["pair"],
+                    "sell",
+                    format_volume(order["pair"], order["vol"], direction="sell"),
+                    price= format_price( order["post floor"] ),
+                    order_type="limit",
+                    just_test=True
+                )
+                # (5) Logging with Logfile and Notifying with Stdout
+                fig_alert( order["pair"], "bad", border_header="[-] FLOOR HIT" )
+                id_pair_display(identifier, order["pair"])
+                display_status(single_order=identifier, header=False, abridged=True)
+                notify_threshold_hit_change( order["floor hit"], "True",  order["ceiling hit"])
+                notify_order_place(order, "sell", curr_price, "red", ceiling=False) 
+                for k, v in response.items():
+                    if not v: continue
+                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
+
+       
         else:
 
-            # Hitting Post-Floor Ceiling
+
+            # ─────────────────────────────────────────────────────────────────
+            # ─── HITTING POST-FLOOR CEILING ──────────────────────────────────
+
             if curr_price >= order["post floor"]:
-                print(order["pair"])
-                print("Post-Floor Ceiling Hit")
-                # 1. add order ID to cashed_out
-                # 2. update relevant balances
-            
+                # (1) Logging with Logfile and Notifying with Stdout
+                fig_alert( order["pair"], "neutral", border_header="[~] POST-FLOOR LIMIT HIT" )
+                id_pair_display(identifier, order["pair"])
+                display_status(single_order=identifier, header=False, abridged=True)
+                # (2) File Away Order ID to cashed_out
+                cash_out(identifier); temp_bin.append(identifier)
+                # (3) Update Relevant Balances
+
+
         #
         # ──────────────────────────────────────────────── HARD FLOOR ─────
         #
 
-            # Hitting Hard Floor after First Floor already Hit
+
+            # ─────────────────────────────────────────────────────────────────
+            # ─── HITTING HARD FLOOR AFTER FIRST FLOOR ALREADY HIT ────────────
+
             if curr_price <= order["hard flor"]:
-                print(order["pair"])
-                print("Hard Floor Hit")
-                # 1. cancel all orders
-                # 2. place new market order
-                # 3. add order ID to cashed_out
+                # (1) Logging with Logfile and Notifying with Stdout
+                fig_alert( order["pair"], "bad", border_header="[~] HARD FLOOR HIT" )
+                id_pair_display(identifier, order["pair"])
+                display_status(single_order=identifier, header=False, abridged=True)
+                # (2) Cancel All Orders
+                # (3) Place New Market Order
+                response = add_order(
+                    order["pair"],
+                    "sell",
+                    format_volume(order["pair"], order["vol"], direction="sell"),
+                    price= format_price( order["hard floor"] ),
+                    order_type="market",
+                    just_test=True
+                )
+                # (4) File Away Order ID to cashed_out
+                cash_out(identifier); temp_bin.append(identifier)
+                # (5) Logging with Logfile and Notifying with Stdout
+                notify_order_place(order, "sell", curr_price, "red", ceiling=True) 
+                for k, v in response.items():
+                    if not v: continue
+                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
 
-
-balances = {
-    'ZUSD': '0.0000', 
-    'XXBT': '0.0039708840', 
-    'XXDG': '2138.88730000', 
-    'XXLM': '0.00000000', 
-    'XETH': '0.0000000000', 
-    'XETC': '6.0659800000', 
-    'ADA': '0.00000000', 
-    'NANO': '11.0950580000', 
-    'LINK': '2.9777680000', 
-    'PAXG': '0.0000000800', 
-    'TRX': '522.78859639', 
-    'MANA': '15.1407400000'
-}
 
 
 if __name__ == "__main__":
     pass
-    #threec_live()
+    
+    threec_live()
