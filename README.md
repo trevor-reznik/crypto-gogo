@@ -1,4 +1,7 @@
-# A Programmer's Guide to Trading
+# Automated Momentum Trading
+
+![demo gif](wiki-pics/demo.gif)
+
 
 <a name="todo"/>
 

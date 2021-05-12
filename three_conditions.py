@@ -9,6 +9,7 @@ from termcolor import colored
 import time
 from term_gui import make_header
 from pyfiglet import Figlet
+import sys
 
 #
 # ────────────────────────────────────────────────── CREATE PRICE THRESHOLDS ─────
@@ -214,6 +215,7 @@ def init_orders(log_file="order", new_thresholds=True, stop=.035, limit=False, h
     history = orders_by_type("buy")
     delete = load_obj("cashed_out")
 
+    color = "magenta"
     for key, order in history.items():
 
         # If order is already cashed out, delete the order record and skip this iteration
@@ -272,13 +274,38 @@ def init_orders(log_file="order", new_thresholds=True, stop=.035, limit=False, h
                 }
             )
 
-        if verbose:
-            print(
-                order["pair"],
-                floors,
-                "\n"
-            )
 
+        if verbose:
+            color = "green" if color == "magenta" else "cyan" if color == "green" else "magenta"
+            print(
+                colored(
+                    make_header(
+                        60,
+                        order["pair"],
+                        character="-",
+                        centered=True,
+                        boxed=True
+                    ),
+                    color
+                ),
+                colored(
+                "\nThresholds from Chosen Algorithm:",
+                "white"
+                )
+            )
+            for _, x in floors.items():
+                print(
+                    _,
+                    ":",
+                    colored(
+                        str(f'{x:.10f}'),
+                        "blue"
+                    )
+                )
+        if verbose:
+            time.sleep(.8)
+
+    time.sleep(.5)
     save_obj(curr_dict, log_file)
 
 
@@ -353,7 +380,7 @@ def cash_out(order_id):
 
 
 def format_price(price, deciminals=6):
-    return f'{(price):.6f}'
+    return float(f'{(price):.6f}')
 
 
 #
@@ -589,7 +616,13 @@ def fig_alert(text, valence, border_header=False, font=False, color=False, boxed
     # Text
     if pair:
         text = text.replace("X","")
-        text = text[:3] + " - " + text[-3:]
+        if text[:3] in ["PAG", "LIN"]:
+            if text[-2:] == "BT":
+                text = text[:4] + " - " + text[-2:] + "C"
+            else:
+                text = text[:4] + " - " + text[-3:]
+        else:
+            text = text[:3] + " - " + text[-3:]
     text = f.renderText( leader + text + leader if len(text) < 8 else text )
     
     print( colored(text, color) ) if termcolor else text
@@ -843,7 +876,7 @@ def threec_live():
             # ─────────────────────────────────────────────────────────────────
             # ─── HITTING HARD FLOOR AFTER FIRST FLOOR ALREADY HIT ────────────
 
-            if curr_price <= order["hard flor"]:
+            if curr_price <= order["hard floor"]:
                 # (1) Logging with Logfile and Notifying with Stdout
                 fig_alert( order["pair"], "bad", border_header="[~] HARD FLOOR HIT" )
                 id_pair_display(identifier, order["pair"])
@@ -867,8 +900,16 @@ def threec_live():
                     print( colored( ( str(k) + "\n" + str(v) ), "blue") )
 
 
+    save_obj(accounts, "order")
+
+
 
 if __name__ == "__main__":
     pass
-    
-    threec_live()
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--update-orders":
+            init_orders(verbose=True)
+        elif sys.argv[1] == "--status":
+            display_status()
+    else:
+        threec_live()
