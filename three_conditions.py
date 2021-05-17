@@ -1,6 +1,7 @@
 
 
 # TODO: log file updates with each functions -- relevant info only -- time-coded
+# TODO: refrence dictionary { pair_abbreviation : property formatted COIN - COIN } for fig header display function
 
 
 from tradebot import usr_fees, balance, trade_history, get_price, add_order, asset_pair
