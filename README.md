@@ -2,11 +2,21 @@
 
 ![demo gif](wiki-pics/demo.gif)
 
+[To-Do List](#todo)
+
+[Methodologies Overview](#Methodologies)
+
+[Wiki - Table of Contents](#table-of-contents)
+
+
+--------------------------------------------------------------------
 
 <a name="todo"/>
 
 #### *To Do*
 
+- GH pages
+  - description of all methodologies list items
 - historical data collection
 - choose covariates with elimination and weighted fitting over time
   - reference popular covariates used in stock market algorithms that are generalizable to multiple   currencies
@@ -44,8 +54,113 @@
 
 owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 
+---------------------------------------------------
 
 
+<a name="Methodologies"/>
+
+
+# Methodologies
+
+### 1. ML
+
+- Historical Reference
+- Academic Reference
+
+###### Generalized Linear Methods
+- Linear Regression
+- Nearest Neighbor
+
+###### Classification
+
+###### Decision Trees
+
+###### Ensemble
+- Boosted
+
+### 2. Traditional Trend-Analysis | Varied Frequency
+
+###### Volatility
+- Wilders
+- Average True Range
+
+###### Trend Analysis
+- Alligator
+- Chaikin
+  - Money Flow
+  - Oscillator
+- Chanedelier Exit
+- Donchian Channels
+- Ichimoku Cloud
+- Parabolic SAR
+- *Pyschological Line*
+- Moving Average
+  - Simple 
+  - Smoothed 
+  - Least Sqaures 
+  - Exponential 
+  - Weighted
+  - Hull
+  - Volume Weighted
+- TRIX
+- Zig Zag
+
+###### Statistical Analysis
+- Stock to Flow
+- Volume
+  - Volume Profile
+    - Time at Price
+    - Volume at Price
+- Z Score
+
+###### Mean Reversion
+- Bollinger Bonds
+  - Bollinger Bonds %B
+  - Bollinger Bonds Width
+- Choppiness Index
+- Keltner Channels
+- Relative Strength Index
+
+### 3. High-Frequency | Momentum-Driven
+
+- *Core*:
+  - Momentum - Standard Calculation
+  - On Balance Volume
+  - Rate of Change
+- Directional Movement Index
+- On Balance Volume
+
+###### Trend Analysis
+- Accumulation Dist
+- Average Dir Movement Index
+  - Average Dir Movement Index Rating
+
+###### Oscillator
+- Aroon Oscillator
+- Awesome Oscilattor
+- Commodity Channel Index
+- Detrended Price Oscillator
+- Elders' Force Index
+- Moving Average Convergence/Divergence
+- Money Flow Index
+- Percent Price Oscillator
+- Stochastic
+  - Stochastic Fast
+  - Stochastic Slow
+  - Stochastic RSI
+- Williams %R
+
+### 4. High-Frequency | Profit-Driven
+
+- Reference-Price, Profit-Driven, Weighted, Outcome-Dependent Methods
+
+### 5. Index 
+- Dollar-Cost Averaging
+- Index Market Cap
+- [Example](www.kryptix.app/en/)
+
+
+--------------------------------------
 
 
 <a name="table-of-contents"/>
@@ -55,6 +170,7 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 
 ## [**Protocols**](#Protocols)
 
+ - [***Methodologies***](#Methodologies)
  - [***Strategy Log***](#strat-log)
 
 
