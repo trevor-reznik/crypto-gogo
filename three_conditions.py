@@ -310,7 +310,12 @@ def threec_live(orders_name="orders_v1", trash_name="cashed_out_v1"):
 
                     if not order["ceiling hit"]:
                         if curr_price >= order["ceiling"]:
-                            above_ceiling(order, id, curr_price)
+                            # !!! don't initiate limit order below current price
+                            if curr_price < order["ceiling"] * 1.03:
+                                above_ceiling(order, id, curr_price)
+                            else:
+                                raise_ceiling(order, id, curr_price, 1.03)
+                                orders_unchanged = False
                     else:
                         if curr_price <= order["post ceiling"]:
                             post_ceiling_floor(order, id)
