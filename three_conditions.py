@@ -1,40 +1,45 @@
+###   
+###   
+###   ooooooooooooo oooo                                          .oooooo.   
+###   8'   888   `8 `888                                         d8P'  `Y8b  
+###        888       888 .oo.   oooo d8b  .ooooo.   .ooooo.     888          
+###        888       888P"Y88b  `888""8P d88' `88b d88' `88b    888          
+###        888       888   888   888     888ooo888 888ooo888    888          
+###        888       888   888   888     888    .o 888    .o    `88b    ooo  
+###       o888o     o888o o888o d888b    `Y8bod8P' `Y8bod8P'     `Y8bood8P'  
+###                                                                          
+###                                                                          
+###                                                                          
+###    .oooooo..o     .                          .   
+###   d8P'    `Y8   .o8                        .o8   
+###   Y88bo.      .o888oo oooo d8b  .oooo.   .o888oo 
+###    `"Y8888o.    888   `888""8P `P  )88b    888   
+###        `"Y88b   888    888      .oP"888    888   
+###   oo     .d8P   888 .  888     d8(  888    888 . 
+###   8""88888P'    "888" d888b    `Y888""8o   "888" 
+###                                                  
+###   
 
 
-# TODO: log file updates with each functions -- relevant info only -- time-coded
-# TODO: refrence dictionary { pair_abbreviation : property formatted COIN - COIN } for fig header display function
 
-
+from term_gui import make_header
+import display_status
 import kraken_public as krakpub
 import kraken_authenticated as krakauth
-
-from termcolor import colored
-import time
-from term_gui import make_header
 import persistent_objects as persistent
+import format_order
+from crud_orders import crud
+import time
 
-#
-# ────────────────────────────────────────────────── CREATE PRICE THRESHOLDS ─────
-#
 
-
-def stop_limit(trading_pair, refc_cost, asset_balance, stop=False, limit=False, hard_floor=False, fee="use API"):
+def threec_thresholds(trading_pair, refc_cost, asset_balance, stop=False, limit=False, hard_floor=False, fee="use API"):
     """
-    Purpose:
-        Get price for all three conditions in a dictionary.
+    Get price for all three conditions in a dictionary.
+    If only want floor/ceiling price with given percent, then only use
+    the associated values in the returned dict.
+    Leave optional params as False in order to use default percentages.
 
-    Use:
-        If only want floor/ceiling price with given percent, then only use
-        the associated values in the returned dict.
-        Leave optional params as False in order to use default percentages.
-
-    Returns:
-        (1) ceiling_price,
-        (2) post_ceiling_price,
-        (3) floor_price,
-        (4) post_floor_price,
-        (5) hard_floor_price
-
-    Params:
+    Args:
         trading_pair    : Kraken abbreviation for the trading pair
         refc_cost       : cost of initial trade in the reference currency
         asset_balance   : volume of trade in the asset (owned/purchased) currency
@@ -43,6 +48,13 @@ def stop_limit(trading_pair, refc_cost, asset_balance, stop=False, limit=False, 
         hard_flooor     : the absolute floor that automatically triggers a market sell
         fee             : the scheduled fee percentage for this pair. default arg calls the API for each pair.
                           Alternatively, can use ( .20% + .26% ) as a standard.
+    Returns:
+        (dict)
+            ceiling_price,
+            post_ceiling_price,
+            floor_price,
+            post_floor_price,
+            hard_floor_price
     """
 
     ### Calculations:
@@ -100,50 +112,21 @@ def stop_limit(trading_pair, refc_cost, asset_balance, stop=False, limit=False, 
     }
 
 
-
-#
-# ────────────────────────────────────────────────────── CREATING ORDER DICT ─────
-#
-
-
-def init_orders(log_file="order", new_thresholds=True, stop=.035, limit=False, hard_floor=False, fee=(.0026009 * 2.0), verbose=False):
+def update_thresholds(orders_obj, stop=.035, limit=False, hard_floor=False, fee=(.0026009 * 2.0)):
     """
-    Params:
-        log_file        : the pickle obj file that contains the order dict that should be accessed
-        new_thresholds  : if False, don't update dictionary with new floor calculations
-        stop            : first floor/ceiling that activates the limit condition
-        limit           : take-profit/stop-loss that's initiated after 1st condition is met
-        hard_flooor     : the absolute floor that automatically triggers a market sell
-        fee             : the scheduled fee percentage for this pair. "use API" arg calls the API for each pair.
-                          Default value represents most common fee schedule.
+    Update orders object with three conditions type thresholds
+
+    Args:
+        stop        : first floor/ceiling that activates the limit condition
+        limit       : take-profit/stop-loss that's initiated after 1st condition is met
+        hard_flooor : the absolute floor that automatically triggers a market sell
+        fee         : the scheduled fee percentage for this pair. "use API" arg calls the API for each pair.
+                      Default value represents most common fee schedule.
     """
 
-    curr_dict = persistent.load_obj(log_file)
-    history = orders_by_type("buy")
-    delete = persistent.load_obj("cashed_out")
-
-    color = "magenta"
-    for key, order in history.items():
-
-        # If order is already cashed out, delete the order record and skip this iteration
-        if key in delete:
-            if key in curr_dict.keys():
-                del curr_dict[key]
-            continue
-        
-        # Update the GET responses from krakauth.trade_history API call to saved order-dictionary-pickle-obj
-        else:
-            try:
-                curr_dict[key].update(order)
-            except: curr_dict[key] = order
-        # Call stop_limit to calculate floors/ceilings for each order unless new_thresholds is False
-        try:
-            if not new_thresholds:
-                if order["ceiling"]:
-                    pass
-        # if new_thresholds is False but the order is brand new, create thresholds anyway
-        except:
-            floors = stop_limit(
+    for id, order in orders_obj.items():
+        if "post ceiling" not in order.keys():
+            floors = threec_thresholds(
                 order["pair"],
                 float(order["cost"]),
                 float(order["vol"]),
@@ -152,285 +135,208 @@ def init_orders(log_file="order", new_thresholds=True, stop=.035, limit=False, h
                 limit=limit,
                 hard_floor=hard_floor
             )
-            curr_dict[key].update(floors)
-
-        # if new_thresholds is True
-        if new_thresholds:
-            floors = stop_limit(
-                order["pair"],
-                float(order["cost"]),
-                float(order["vol"]),
-                stop=stop,
-                fee=fee,
-                limit=limit,
-                hard_floor=hard_floor
-            )
-            curr_dict[key].update(floors)
-
-        # Check if 'ceiling hit' and 'floor hit' values already exist. If not, create
-        try:
-            if curr_dict[key]["ceiling hit"]:
-                pass
-            if curr_dict[key]["floor hit"]:
-                pass
-        except:
-            curr_dict[key].update(
-                {
-                    "ceiling hit" : False,
-                    "floor hit" : False
-                }
-            )
+            orders_obj[id].update(floors)
+            orders_obj[id]["ceiling hit"] = False
+            orders_obj[id]["floor hit"] = False
 
 
-        if verbose:
-            color = "green" if color == "magenta" else "cyan" if color == "green" else "magenta"
-            print(
-                colored(
-                    make_header(
-                        60,
-                        order["pair"],
-                        character="-",
-                        centered=True,
-                        boxed=True
-                    ),
-                    color
-                ),
-                colored(
-                "\nThresholds from Chosen Algorithm:",
-                "white"
-                )
-            )
-            for _, x in floors.items():
-                print(
-                    _,
-                    ":",
-                    colored(
-                        str(f'{x:.10f}'),
-                        "blue"
-                    )
-                )
-        if verbose:
-            time.sleep(.8)
-
-    time.sleep(.5)
-    persistent.save_obj(curr_dict, log_file)
-
-
-def orders_by_type(order_type):
+def print_log_header(header):
     """
-    Returns dictionary of trade history (up to 50 previous orders)
-    that are either buys or sells only. If want all (buys and
-    sells), just use krakauth.trade_history() method.
-
-    Params:
-        order_type : "buy" or "sell"
     """
 
-    ret = {}
-    history = krakauth.trade_history()
-    for key, order in history.items():
-        if order["type"] == order_type:
-            ret[key] = order
-    return ret
+    header = make_header(
+        60,
+        header,
+        tiers=2
+    )
+
+    # log header
+    display_status.timestamp_write(
+        display_status.get_log_file(),
+        header
+    )
+
+    # print header
+    print(header)
 
 
+def above_ceiling(order, id, curr_price):
+    """
+    (1) Cancel All Orders
+    (2) Change 'ceiling hit'
+    (3) Change 'floor hit' value to False (incase it's not already)
+    (4) Place Limit Order
+    """
+
+    order["ceiling hit"] = True
+    order["floor hit"] = False
+    response = krakauth.add_order(
+        order["pair"],
+        "sell",
+        format_order.format_volume(order["pair"], order["vol"], direction="sell"),
+        price= format_order.format_price( order["post ceiling"] ),
+        order_type="limit",
+        just_test=True
+    )
+
+    print_log_header("[+] ceiling hit for first time")
+    display_status.fig_alert(order["pair"], "good")
+    display_status.single_order_status(id)
+    display_status.notify_order_place(order, "sell", curr_price, response, "green", ceiling=True) 
 
 
-#
-# ──────────────────────────────────────────────────── THREE CONDITIONS LIVE ─────
-#
+def beneath_floor(order, id, curr_price):
+    """
+    (1) Cancel All Orders
+    (2) Change 'floor hit'
+    (3) Change 'ceiling hit' Value to False (incase it's not already)
+    (4) Place Limit Order
+    (5) Logging with Logfile and Notifying with Stdout
+    """
+
+    order["floor hit"] = True
+    order["ceiling hit"] = False
+    response = krakauth.add_order(
+        order["pair"],
+        "sell",
+        format_order.format_volume(order["pair"], order["vol"], direction="sell"),
+        price= format_order.format_price( order["post floor"] ),
+        order_type="limit",
+        just_test=True
+    )
+
+    print_log_header("[-] floor hit for first time")
+    display_status.fig_alert( order["pair"], "bad")
+    display_status.single_order_status(id)
+    display_status.notify_order_place(order, "sell", curr_price, response, "red", ceiling=False) 
 
 
-def threec_live():
+def post_ceiling_floor(order, id):
+    """
+    (1) Logging with Logfile and Notifying with Stdout
+    (2) File Away Order ID to cashed_out
+    """
 
-    accounts = persistent.load_obj("order")
-    for _ in persistent.load_obj("cashed_out"):
-        try:
-            del accounts[_]
-        except: pass
-    temp_bin = []
-
-    # TODO -- save accounts object to pickle file at end of instance
-
-    for identifier, order in accounts.items():
-
-        curr_price = krakpub.get_price(order["pair"])
-        time.sleep(1.5)
-        print("\n\n\n\n\n\n\n\n")
-
-        # Temp Recylcye Bin -- ordres that have been cashed out but can't update accounts until iteration ends
-        if identifier in temp_bin: continue
-
-        #
-        # ─────────────────────────────────────────────────── CEILING ─────
-        #
-
-        if not order["ceiling hit"]:
+    print_log_header("[~] POST-CEILING LIMIT HIT")
+    display_status.fig_alert( order["pair"], "good")
+    display_status.single_order_status(id)
+    crud.cash_out(id)
 
 
-            # ─────────────────────────────────────────────────────────────────
-            # ─── HITTING CEILING FOR FIRST TIME ──────────────────────────────
+def post_floor_ceiling(order, id):
+    """
+    (1) Logging with Logfile and Notifying with Stdout
+    (2) File Away Order ID to cashed_out
+    """
 
-            if curr_price >= order["ceiling"]:
-
-                # (1) Cancel All Orders
-                # (2) Change 'ceiling hit'
-                order["ceiling hit"] = True
-                # (3) Change 'floor hit' value to False (incase it's not already)
-                order["floor hit"] = False
-                # (4) Place Limit Order
-                response = krakauth.add_order(
-                    order["pair"],
-                    "sell",
-                    format_volume(order["pair"], order["vol"], direction="sell"),
-                    price= format_price( order["post ceiling"] ),
-                    order_type="limit",
-                    just_test=True
-                )
-                # (5) Logging with Logfile and Notifying with Stdout
-                fig_alert( order["pair"], "good", border_header="[+] CEILING HIT" )
-                id_pair_display(identifier, order["pair"])
-                display_status(single_order=identifier, header=False, abridged=True)
-                notify_threshold_hit_change( order["ceiling hit"], "True",  order["floor hit"])
-                notify_order_place(order, "sell", curr_price, "green", ceiling=True) 
-                for k, v in response.items():
-                    if not v: continue
-                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
+    print_log_header("[~] post-floor ceiling hit")
+    display_status.fig_alert( order["pair"], "neutral")
+    display_status.single_order_status(id)
+    crud.cash_out(id)
 
 
-        else:
+def raise_ceiling(order, id, curr_price, percent_increase):
+    """
+    (1) Cancel All Orders
+    (2) Calculate New Thresholds + Update Dict Values
+    (3) Place New Limit Order with New Post Ceiling Limit
+    (4) Logging with Logfile and Notifying with Stdout
+    """
+
+    msgs = ["Previous Limit: " + str(format_order.format_price(order["post ceiling"]))]
+
+    order["post ceiling"] = order["ceiling"] * ( percent_increase - .05 )
+    order["ceiling"] = order["ceiling"] * percent_increase #for calculations only
+
+    response = krakauth.add_order(
+        order["pair"],
+        "sell",
+        format_order.format_volume(order["pair"], order["vol"], direction="sell"),
+        price= format_order.format_price( order["post ceiling"] ),
+        order_type="limit",
+        just_test=True
+    )
+
+    print_log_header("[^] new ceiling initiated")
+    display_status.fig_alert(order["pair"], "good")
+    display_status.single_order_status(id)
+    display_status.notify_order_place(order, "sell", curr_price, response, "green", ceiling=True) 
+
+    msgs.append("New Limit: " + str(format_order.format_price(order["post ceiling"])))
+    for _ in msgs: print_log_header(_)
+    
+
+def hard_floor(order, id, curr_price):
+    """
+    (1) Logging with Logfile and Notifying with Stdout
+    (2) Cancel All Orders
+    (3) Place New Market Order
+    (4) File Away Order ID to cashed_out
+    (5) Logging with Logfile and Notifying with Stdout
+    """
+
+    response = krakauth.add_order(
+        order["pair"],
+        "sell",
+        format_order.format_volume(order["pair"], order["vol"], direction="sell"),
+        price= format_order.format_price( order["hard floor"] ),
+        order_type="market",
+        just_test=True
+    )
+    crud.cash_out(id)
+    
+    print_log_header("[!] hard floor hit")
+    print_log_header("[!] market order placed")
+    display_status.fig_alert( order["pair"], "bad")
+    display_status.single_order_status(id)
+    display_status.notify_order_place(order, "sell", curr_price, response, "red", ceiling=False) 
 
 
-            # ─────────────────────────────────────────────────────────────────
-            # ─── HITTING POST-CEILING FLOOR AFTER CEILING ────────────────────
+def threec_live(orders_name="orders_v1", trash_name="cashed_out_v1"):
 
-            if curr_price <= order["post ceiling"]:
-                # (1) Logging with Logfile and Notifying with Stdout
-                fig_alert( order["pair"], "neutral", border_header="[~] POST-CEILING LIMIT HIT" )
-                id_pair_display(identifier, order["pair"])
-                display_status(single_order=identifier, header=False, abridged=True)
-                # (2) File Away Order ID to cashed_out
-                cash_out(identifier); temp_bin.append(identifier)
-                # (3) Update Relevant Balances
+    try:
+        while True:
 
+            # refresh orders object
+            crud(orders_obj=orders_name)
+            accounts = persistent.load_obj(orders_name)
+            orders_unchanged = True
 
+            while orders_unchanged:
+                for id, order in accounts.items():
 
-            # ─────────────────────────────────────────────────────────────────
-            # ─── NEW CEILING > MOON ──────────────────────────────────────────
+                    curr_price = krakpub.get_price(order["pair"])
+                    #time.sleep(3)
 
-            if curr_price >= ( order["ceiling"] * 1.04 ):
-                # (1) Cancel All Orders
-                # (2) Calculate New Thresholds + Update Dict Values
-                order["post ceiling"] = order["ceiling"] * 1.035
-                order["ceiling"] = order["ceiling"] * 1.04 #for calculations only
-                # (3) Place New Limit Order with New Post Ceiling Limit
-                response = krakauth.add_order(
-                    order["pair"],
-                    "sell",
-                    format_volume(order["pair"], order["vol"], direction="sell"),
-                    price= format_price( order["post ceiling"] ),
-                    order_type="limit",
-                    just_test=True
-                )
-                # (4) Logging with Logfile and Notifying with Stdout
-                fig_alert( order["pair"], "good", border_header="[+] NEW CEILING INITIATED" )
-                id_pair_display(identifier, order["pair"])
-                display_status(single_order=identifier, header=False, abridged=True)
-                notify_order_place(order, "sell", curr_price, "green", ceiling=True) 
-                print( "Previous Limit:", colored( (format_price ( order["post ceiling"] * .96618357487 )), "green"))
-                print( "New Limit:", colored( (format_price ( order["post ceiling"] * .96618357487 )), "green" ))
-                for k, v in response.items():
-                    if not v: continue
-                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
-        
-        #
-        # ───────────────────────────────────────────────────── FLOOR ─────
-        #
+                    if not order["ceiling hit"]:
+                        if curr_price >= order["ceiling"]:
+                            above_ceiling(order, id, curr_price)
+                    else:
+                        if curr_price <= order["post ceiling"]:
+                            post_ceiling_floor(order, id)
+                            orders_unchanged = False
+                        elif curr_price >= ( order["ceiling"] * 1.01 ):
+                            raise_ceiling(order, id, curr_price, 1.03)
+                            orders_unchanged = False
 
-        if not order["floor hit"]:
+                    if not order["floor hit"]:
+                        if curr_price <= order["floor"]:
+                            beneath_floor(order, id, curr_price)
+                    else:
+                        if curr_price >= order["post floor"]:
+                            post_floor_ceiling(order, id)
+                            orders_unchanged = False
+                        elif curr_price <= order["hard floor"]:
+                            hard_floor(order, id, curr_price)
+                            orders_unchanged = False
+            
+            # save accounts object whenever breaking
+            persistent.save_obj(accounts, orders_name)
+            time.sleep(1)
 
-
-            # ─────────────────────────────────────────────────────────────────
-            # ─── DIP BELOW FLOOR ─────────────────────────────────────────────
-
-            if curr_price <= order["floor"]:
-                # (1) Cancel All Orders
-                # (2) Change 'floor hit'
-                order["floor hit"] = True
-                # (3) Change 'ceiling hit' Value to False (incase it's not already)
-                order["ceiling hit"] = False
-                # (4) Place Limit Order
-                response = krakauth.add_order(
-                    order["pair"],
-                    "sell",
-                    format_volume(order["pair"], order["vol"], direction="sell"),
-                    price= format_price( order["post floor"] ),
-                    order_type="limit",
-                    just_test=True
-                )
-                # (5) Logging with Logfile and Notifying with Stdout
-                fig_alert( order["pair"], "bad", border_header="[-] FLOOR HIT" )
-                id_pair_display(identifier, order["pair"])
-                display_status(single_order=identifier, header=False, abridged=True)
-                notify_threshold_hit_change( order["floor hit"], "True",  order["ceiling hit"])
-                notify_order_place(order, "sell", curr_price, "red", ceiling=False) 
-                for k, v in response.items():
-                    if not v: continue
-                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
-
-       
-        else:
-
-
-            # ─────────────────────────────────────────────────────────────────
-            # ─── HITTING POST-FLOOR CEILING ──────────────────────────────────
-
-            if curr_price >= order["post floor"]:
-                # (1) Logging with Logfile and Notifying with Stdout
-                fig_alert( order["pair"], "neutral", border_header="[~] POST-FLOOR LIMIT HIT" )
-                id_pair_display(identifier, order["pair"])
-                display_status(single_order=identifier, header=False, abridged=True)
-                # (2) File Away Order ID to cashed_out
-                cash_out(identifier); temp_bin.append(identifier)
-                # (3) Update Relevant Balances
-
-
-        #
-        # ──────────────────────────────────────────────── HARD FLOOR ─────
-        #
-
-
-            # ─────────────────────────────────────────────────────────────────
-            # ─── HITTING HARD FLOOR AFTER FIRST FLOOR ALREADY HIT ────────────
-
-            if curr_price <= order["hard floor"]:
-                # (1) Logging with Logfile and Notifying with Stdout
-                fig_alert( order["pair"], "bad", border_header="[~] HARD FLOOR HIT" )
-                id_pair_display(identifier, order["pair"])
-                display_status(single_order=identifier, header=False, abridged=True)
-                # (2) Cancel All Orders
-                # (3) Place New Market Order
-                response = krakauth.add_order(
-                    order["pair"],
-                    "sell",
-                    format_volume(order["pair"], order["vol"], direction="sell"),
-                    price= format_price( order["hard floor"] ),
-                    order_type="market",
-                    just_test=True
-                )
-                # (4) File Away Order ID to cashed_out
-                cash_out(identifier); temp_bin.append(identifier)
-                # (5) Logging with Logfile and Notifying with Stdout
-                notify_order_place(order, "sell", curr_price, "red", ceiling=True) 
-                for k, v in response.items():
-                    if not v: continue
-                    print( colored( ( str(k) + "\n" + str(v) ), "blue") )
-
-
-    persistent.save_obj(accounts, "order")
-
+    except KeyboardInterrupt:
+        exit()
 
 
 if __name__ == "__main__":
-    pass
     threec_live()

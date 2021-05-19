@@ -1,6 +1,6 @@
-# Automated Momentum Trading
+# Automated High-Frequency Momentum Trading
 
-![demo gif](wiki-pics/demo.gif)
+<a name="preview"/>
 
 [To-Do List](#todo)
 
@@ -8,12 +8,19 @@
 
 [Wiki - Table of Contents](#table-of-contents)
 
+###### Simple High-Frequency Strategy Example
+
+![demo gif](wiki-pics/demo.gif)
+
+![current progress pic](wiki-pics/2021-05-19-Progress.png)
+
 
 --------------------------------------------------------------------
 
 <a name="todo"/>
 
 #### *To Do*
+
 
 - GH pages
   - description of all methodologies list items
@@ -48,7 +55,7 @@
 
 - analysis guides -> add to README  [1](https://www.youtube.com/watch?v=eynxyoKgpng)
 
-
+- add "to top" to readme
 
 ###### Alert Key
 
