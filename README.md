@@ -1,21 +1,12 @@
-# Automated High-Frequency Momentum Trading
+# Automated High-Frequency Order Queueing
 
 <a name="preview"/>
 
-CRUD SHOULD UPDATE VALUES FROM CURRENT HISTORY IN ORDER TO GET THRESHOLDS DATA?
-OR UPDATE THRESHOLDS AFTER EACH BREAK FROM 2ND WHILE LOOP IN MAIN?
+Order book -> class
 
+[References 1](#Methodologies)
 
-ADDITIONAL CHECK(S?) TO MAKE SURE NOT PUTTING A LIMIT ORDER BELOW THE CURRENT PRICE WHEN NOT TRYING TO. 
-
-
-[To-Do List](#todo)
-
-[Methodologies Overview](#Methodologies)
-
-[Wiki - Table of Contents](#table-of-contents)
-
-###### Simple High-Frequency Strategy Example
+[References 2](#table-of-contents)
 
 ![demo gif](wiki-pics/demo.gif)
 
@@ -29,59 +20,38 @@ ADDITIONAL CHECK(S?) TO MAKE SURE NOT PUTTING A LIMIT ORDER BELOW THE CURRENT PR
 #### *To Do*
 
 
-- GH pages
-  - description of all methodologies list items
-- historical data collection
-- choose covariates with elimination and weighted fitting over time
-  - reference popular covariates used in stock market algorithms that are generalizable to multiple   currencies
-  - reference history of stock market algorithms
-- [fix stop loss limit definition](https://www.investopedia.com/articles/active-trading/091813/which-order-use-stoploss-or-stoplimit-orders.asp)
+- covariates with elimination and weighted fitting over time
+- artefacts
+- APIs
+- [please fix stop loss limit definition](https://www.investopedia.com/articles/active-trading/091813/which-order-use-stoploss-or-stoplimit-orders.asp)
+- Add: [Maker and Taker Fee Schedules](https://support.kraken.com/hc/en-us/articles/360000526126-What-are-Maker-and-Taker-fees-)
+- technical tool APIs interfaces
+- types
+- in stream ping nonce
 
-- Add to relevant section: [Maker and Taker Fee Schedules](https://support.kraken.com/hc/en-us/articles/360000526126-What-are-Maker-and-Taker-fees-)
 
-- Add to API section: [How to Maintain a Valid Order Book](https://support.kraken.com/hc/en-us/articles/360027821131-How-to-maintain-a-valid-order-book-)
-
-- Add to API section: [What is a Nonce Window](https://support.kraken.com/hc/en-us/articles/360001148023-What-is-a-nonce-window-)
-
-- ? APIs capable of using analysis tools that are available on Kraken terminal
-
-- ? DATA input feed into ML algorithms based on Kraken analysis algorithms or common algorithms
-
-- Trading Strategies/Types
-  - [Momentum Trading](https://www.google.com/search?q=momentum+trading&oq=momentum+trading&aqs=chrome..69i57&sourceid=chrome&ie=UTF-8)
-  - penny trading -> turn into python program
-  - alligator
-  - OBV
-  - trend analysis
-  - BBwidth
-  - relative value of refc vs. relative value of asset
-    - relative trend-based priority of asset (should buy if good value depending on recent trends in time-domain similar to genearl trading frequnecy of given strategy)
-  - High Frequency momentum trading program
-    - whiile True price ticker checker -> looking for relative value of refc vs. asset -> purchase -> add order -> buy value -> sell with low-margin/percent condition-based decision tree program that runs alongside while True
-- fallacies research -> add to README [1](https://www.google.com/search?q=list+of+stock+market+fallacies&oq=list+of+stock+market+fallacies&aqs=chrome..69i57.3041j0j7&sourceid=chrome&ie=UTF-8)
-
-- analysis guides -> add to README  [1](https://www.youtube.com/watch?v=eynxyoKgpng)
-
-- add "to top" to readme
+##### Brainstorm
+- [Momentum Trading](https://www.google.com/search?q=momentum+trading&oq=momentum+trading&aqs=chrome..69i57&sourceid=chrome&ie=UTF-8)
+- Dollar cost averaging vs. indexing vs. technicals vs. load vs. diversification as a function of time vs. momentum value
+  - definition of value without respect to individual liability or history
+  - defintion of value with only rspect to balance sheet
+- relative value of refc vs. relative value of asset
+- ticker API -> relative value ->
+- hard-coding ant-fallacies [1](https://www.google.com/search?q=list+of+stock+market+fallacies&oq=list+of+stock+market+fallacies&aqs=chrome..69i57.3041j0j7&sourceid=chrome&ie=UTF-8)
 
 ###### Alert Key
-
 owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 
 ---------------------------------------------------
 
-
 <a name="Methodologies"/>
 
 
-# Methodologies
 
-### 1. ML
+### technicals - ml
 
-- Historical Reference
-- Academic Reference
 
-###### Generalized Linear Methods
+###### GLM
 - Linear Regression
 - Nearest Neighbor
 
@@ -92,7 +62,7 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 ###### Ensemble
 - Boosted
 
-### 2. Traditional Trend-Analysis | Varied Frequency
+### 2. Varied Frequency
 
 ###### Volatility
 - Wilders
@@ -107,7 +77,7 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 - Donchian Channels
 - Ichimoku Cloud
 - Parabolic SAR
-- *Pyschological Line*
+- Pyschological Line
 - Moving Average
   - Simple 
   - Smoothed 
@@ -135,7 +105,7 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 - Keltner Channels
 - Relative Strength Index
 
-### 3. High-Frequency | Momentum-Driven
+### 3. High-Frequency | Momentum
 
 - *Core*:
   - Momentum - Standard Calculation
@@ -164,13 +134,19 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
   - Stochastic RSI
 - Williams %R
 
-### 4. High-Frequency | Profit-Driven
+### 4. High-Frequency | Subjective
 
-- Reference-Price, Profit-Driven, Weighted, Outcome-Dependent Methods
+- microeconomics approach
+- Weighted, fitting and current state a function of results 
 
-### 5. Index 
+### 5. Low-Frequency 
 - Dollar-Cost Averaging
-- Index Market Cap
+- Market Cap
+
+### 6. Index 
+- indices
+- osint api
+- meta level decision data
 - [Example](www.kryptix.app/en/)
 
 
@@ -185,7 +161,6 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 ## [**Protocols**](#Protocols)
 
  - [***Methodologies***](#Methodologies)
- - [***Strategy Log***](#strat-log)
 
 
 ## [Algorithms](#Algorithms)
@@ -313,7 +288,6 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 
 ### Strategy Log
 
-#### Day 1
 
 ###### Micro	
 - stop profits -> get in get out in order to keep options open and retain liquiditiy 
@@ -326,7 +300,6 @@ owned/spec/pending **|** buy/sell/eval **|** sub-dip, dip, rise, sub-rise
 - dont be gready. make money and don't lost money
 	
 
-#### Day 2
 
 ###### Micro	
 - make limits idiosyncratic numbers to avoid bandwagon momentum and vice-versa -- depending on if going for mid-rise dip or dependingin on consistent run/inflection-point 	
@@ -350,7 +323,6 @@ DOES IT MAKE SENSE TO BASE DECISIONS OFF OF THE BUYING PRICE?
 *Readnig Candlstick Graphs*: the period (e.g., 1d, 4h) is the widrth of the candlesticks on the candlesticks graph
 use the 'cycle tools' drawing tool to illustrate other time periods/differentiations on top of the period candlestick spread
 
-#### Day 3
 
 ###### Macro
 
@@ -373,16 +345,6 @@ Ceiling -> Floor Limit for High Frequnecy Cash-Ins
 
 # Algorithms
 
-
-<a name="Data-Sources"/>
-
-
-
-## Data Sources
-
-Historical Data Tab on coinmarketcap.com (e.g., [for BTC](https://coinmarketcap.com/currencies/bitcoin/historical-data/?start=20130428&end=20171004))
-
-[Coin Market Cap Data FAQ](https://coinmarketcap.com/faq/)
 
 -----------------------------------
 
@@ -1991,3 +1953,14 @@ Instead of high-powered nodes processing transactions in exchange for compensati
 Clients who ‘stake’ their crypto holdings on a POS network can earn additional assets as a reward for doing so.
 
 Assets listed on Kraken that currently utilize a POS protocol include but are not limited to Tezos, Cosmos, Cardano and EOS.
+
+
+<a name="Data-Sources"/>
+
+
+
+## Data Sources
+
+Historical Data Tab on coinmarketcap.com (e.g., [for BTC](https://coinmarketcap.com/currencies/bitcoin/historical-data/?start=20130428&end=20171004))
+
+[Coin Market Cap Data FAQ](https://coinmarketcap.com/faq/)
